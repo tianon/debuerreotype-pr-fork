@@ -32,15 +32,41 @@ epoch="$(< "$targetDir/debuerreotype-epoch")"
 [ -n "$epoch" ]
 
 aptVersion="$("$thisDir/.apt-version.sh" "$targetDir")"
-if dpkg --compare-versions "$aptVersion" '>=' '0.8~'; then
+if dpkg --compare-versions "$aptVersion" '>=' '2.7.8~'; then
+	# if APT is new enough to have "apt-get dist-clean", let's use that for cleaning up list files
+	# (this is destructive where previous incarnations were not, but I *think* that's probably OK -- worst case we can get clever with saving a copy in /tmp or something and restoring after tar so APT can stay the source-of-truth on what should be safe to remove 💕)
+	# https://salsa.debian.org/apt-team/apt/-/commit/b3a430029360800e1b2cb6dfc385c5182f74fcb8
+	# https://tracker.debian.org/news/1492892/accepted-apt-278-source-into-unstable/
+	# https://salsa.debian.org/apt-team/apt/-/blob/559ad32ed4d88e3216c3e12197bb54a9364f733f/apt-pkg/acquire.cc#L885-896
+	"$thisDir/debuerreotype-apt-get" "$targetDir" dist-clean -qq
+	"$thisDir/debuerreotype-apt-get" "$targetDir" clean -qq
+	# TODO use --transform to rename the remaining "/var/lib/apt/lists/snapshot.debian.org_xxx" files to "deb.debian.org_yyy"
+elif dpkg --compare-versions "$aptVersion" '>=' '0.8~'; then
 	# if APT is new enough to auto-recreate "partial" directories, let it
 	# (https://salsa.debian.org/apt-team/apt/commit/1cd1c398d18b78f4aa9d882a5de5385f4538e0be)
 	excludes+=(
 		'./var/cache/apt/**'
 		'./var/lib/apt/lists/**'
-		'./var/state/apt/lists/**'
 	)
-	# (see also the targeted exclusions in ".tar-exclude" that these are overriding)
+	if dpkg --compare-versions "$aptVersion" '<<' '0.9.14~'; then
+		# https://salsa.debian.org/apt-team/apt/commit/5555ef9850b7e66aa02d39bb7d624fdf3e43edb2 (APT 0.9.14 removed support for/use of /var/state/apt)
+		excludes+=(
+			'./var/state/apt/lists/**'
+		)
+	fi
+else
+	# otherwise, targeted exclusions to get rid of everything except "/var/cache/apt/archives/partial" and "/var/lib/apt/lists/partial"
+	excludes+=(
+		'./var/cache/apt/*.bin'
+		'./var/cache/apt/archives/*.deb'
+		'./var/cache/apt/archives/lock'
+		'./var/lib/apt/lists/*Packages*'
+		'./var/lib/apt/lists/*Release*'
+		'./var/lib/apt/lists/lock'
+		'./var/state/apt/lists/*Packages*'
+		'./var/state/apt/lists/*Release*'
+		'./var/state/apt/lists/lock'
+	)
 fi
 
 "$thisDir/debuerreotype-fixup" "$targetDir"

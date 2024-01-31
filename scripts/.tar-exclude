@@ -6,19 +6,6 @@
 ./proc/**
 ./sys/**
 
-# targeted exclusions to get rid of everything except "/var/cache/apt/archives/partial" and "/var/lib/apt/lists/partial"
-# (https://salsa.debian.org/apt-team/apt/commit/1cd1c398d18b78f4aa9d882a5de5385f4538e0be)
-./var/cache/apt/*.bin
-./var/cache/apt/archives/*.deb
-./var/cache/apt/archives/lock
-./var/lib/apt/lists/*Packages*
-./var/lib/apt/lists/*Release*
-./var/lib/apt/lists/lock
-# https://salsa.debian.org/apt-team/apt/commit/5555ef9850b7e66aa02d39bb7d624fdf3e43edb2 (APT 0.9.14 removed support for /var/state/apt)
-./var/state/apt/lists/*Packages*
-./var/state/apt/lists/*Release*
-./var/state/apt/lists/lock
-
 # ends up with host-kernel info
 ./etc/apt/apt.conf.d/01autoremove-kernels
 
