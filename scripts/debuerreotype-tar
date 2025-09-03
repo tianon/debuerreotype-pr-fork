@@ -31,6 +31,16 @@ targetTar="${1:-}"; shift || eusage 'missing target-tar'
 epoch="$(< "$targetDir/debuerreotype-epoch")"
 [ -n "$epoch" ]
 
+tarArgs=(
+	--create
+	--file "$targetTar"
+	--auto-compress
+	--directory "$targetDir"
+	--numeric-owner
+	--transform 's,^./,,'
+	--sort name
+)
+
 aptVersion="$("$thisDir/.apt-version.sh" "$targetDir")"
 if dpkg --compare-versions "$aptVersion" '>=' '0.8~'; then
 	# if APT is new enough to auto-recreate "partial" directories, let it
@@ -41,29 +51,29 @@ if dpkg --compare-versions "$aptVersion" '>=' '0.8~'; then
 		'./var/state/apt/lists/**'
 	)
 	# (see also the targeted exclusions in ".tar-exclude" that these are overriding)
+
+	# also, let's try to replicate "apt-get dist-clean" (https://tracker.debian.org/news/1492892/accepted-apt-278-source-into-unstable/)
+	# https://unix.stackexchange.com/a/466028/153467 (tar excludes are positional in tar 1.29+)
+	# https://salsa.debian.org/apt-team/apt/-/blob/3c9399e643a07074d47c9bceca88e8d43ff55d36/apt-pkg/acquire.cc#L887-L897
+	for releaseFile in "$targetDir"/var/lib/apt/lists/*_{Release,Release.gpg,InRelease}; do
+		[ -s "$releaseFile" ] || continue
+		releaseFile="${releaseFile#$targetDir/}"
+		tarArgs+=( "./$releaseFile" )
+	done
+	tarArgs+=( --transform 's,/snapshot.debian.org_archive_\(\[^_\]\+\)_\[0-9TZ\]\+_,/deb.debian.org_\1_,' )
 fi
 
 "$thisDir/debuerreotype-fixup" "$targetDir"
 
-tarArgs=(
-	--create
-	--file "$targetTar"
-	--auto-compress
-	--directory "$targetDir"
-	--exclude-from "$thisDir/.tar-exclude"
-)
+tarArgs+=( --exclude-from "$thisDir/.tar-exclude" )
 if [ -z "$includeDev" ]; then
 	excludes+=( './dev/**' )
 fi
 for exclude in "${excludes[@]}"; do
 	tarArgs+=( --exclude "$exclude" )
 done
-tarArgs+=(
-	--numeric-owner
-	--transform 's,^./,,'
-	--sort name
-	.
-)
+
+tarArgs+=( '.' )
 
 tar "${tarArgs[@]}"
 
